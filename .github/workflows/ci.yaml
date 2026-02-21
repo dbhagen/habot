@@ -17,7 +17,6 @@ jobs:
 
       - uses: wagoid/commitlint-github-action@v6
         with:
-          configFile: ''
           failOnWarnings: true
 
   build:
