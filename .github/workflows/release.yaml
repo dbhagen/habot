@@ -1,0 +1,123 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: 'Version bump type'
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Calculate new version
+        id: version
+        run: |
+          CURRENT=$(grep '^version:' habot/config.yaml | sed 's/version: *"\(.*\)"/\1/')
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+
+          case "${{ inputs.bump }}" in
+            major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+            minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+            patch) PATCH=$((PATCH + 1)) ;;
+          esac
+
+          NEW="${MAJOR}.${MINOR}.${PATCH}"
+          echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
+          echo "new=$NEW" >> "$GITHUB_OUTPUT"
+          echo "Bumping $CURRENT → $NEW"
+
+      - name: Update version in all files
+        run: |
+          NEW="${{ steps.version.outputs.new }}"
+
+          # habot/config.yaml
+          sed -i "s/^version: .*/version: \"${NEW}\"/" habot/config.yaml
+
+          # habot/server/package.json
+          cd habot/server && npm version "$NEW" --no-git-tag-version && cd ../..
+
+          # habot/frontend/package.json
+          cd habot/frontend && npm version "$NEW" --no-git-tag-version && cd ../..
+
+      - name: Update CHANGELOG.md
+        run: |
+          NEW="${{ steps.version.outputs.new }}"
+          DATE=$(date +%Y-%m-%d)
+
+          # Generate changelog from commits since last tag
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -n "$LAST_TAG" ]; then
+            COMMITS=$(git log "${LAST_TAG}..HEAD" --pretty=format:"- %s" --no-merges)
+          else
+            COMMITS=$(git log --pretty=format:"- %s" --no-merges)
+          fi
+
+          # Prepend new version to CHANGELOG
+          ENTRY="## ${NEW} (${DATE})\n\n${COMMITS}\n"
+
+          if [ -f habot/CHANGELOG.md ]; then
+            sed -i "s/^# Changelog$/# Changelog\n\n${ENTRY}/" habot/CHANGELOG.md
+          else
+            printf "# Changelog\n\n${ENTRY}\n" > habot/CHANGELOG.md
+          fi
+
+      - name: Install and build
+        run: |
+          cd habot/server && npm ci && npm run build && cd ../..
+          cd habot/frontend && npm ci && npm run build && cd ../..
+
+      - name: Commit and tag
+        run: |
+          NEW="${{ steps.version.outputs.new }}"
+          git add -A
+          git commit -m "release: v${NEW}"
+          git tag -a "v${NEW}" -m "Release v${NEW}"
+          git push origin main --follow-tags
+
+      - name: Generate release notes
+        id: notes
+        run: |
+          NEW="${{ steps.version.outputs.new }}"
+          LAST_TAG=$(git describe --tags --abbrev=0 "v${NEW}^" 2>/dev/null || echo "")
+
+          if [ -n "$LAST_TAG" ]; then
+            NOTES=$(git log "${LAST_TAG}..v${NEW}" --pretty=format:"- %s" --no-merges | grep -v "^- release:")
+          else
+            NOTES=$(git log "v${NEW}" --pretty=format:"- %s" --no-merges | grep -v "^- release:")
+          fi
+
+          # Write to file to preserve newlines
+          echo "$NOTES" > /tmp/release-notes.txt
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          NEW="${{ steps.version.outputs.new }}"
+          gh release create "v${NEW}" \
+            --title "v${NEW}" \
+            --notes-file /tmp/release-notes.txt

@@ -1,0 +1,29 @@
+name: HABot
+description: Chat with an AI to manage your Home Assistant
+version: "0.1.1"
+slug: habot
+url: https://github.com/dbhagen/habot
+arch:
+  - amd64
+  - aarch64
+startup: application
+boot: auto
+init: false
+host_network: true
+ingress: true
+ingress_port: 8099
+ingress_stream: true
+hassio_api: true
+homeassistant_api: true
+map:
+  - config:rw
+options:
+  anthropic_api_key: ""
+  ha_mcp_url: "http://localhost:9583/mcp"
+  model: "claude-sonnet-4-6"
+  debug_logging: false
+schema:
+  anthropic_api_key: str
+  ha_mcp_url: url
+  model: list(claude-sonnet-4-6|claude-haiku-4-5|claude-opus-4-6)
+  debug_logging: bool

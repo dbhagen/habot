@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+*.tsbuildinfo
+
+# Environment
+.env
+.env.*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Playwright browser data
+.playwright-mcp/
+.mcp/
+
+# Claude Code local settings
+.claude/*.local.json
+CLAUDE.md
+PRODUCT.md
+
+# MCP config (dev-only)
+.mcp.json
+
+# Local deployment
+deploy.sh
+.deploy-timestamp
+
+# Debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

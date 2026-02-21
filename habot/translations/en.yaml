@@ -1,0 +1,24 @@
+configuration:
+  anthropic_api_key:
+    name: Anthropic API Key
+    description: >-
+      Your Anthropic API key (starts with sk-ant-api03-). Generate one at
+      https://console.anthropic.com/settings/keys — do NOT use an OAuth
+      token (sk-ant-oat01-), those expire quickly.
+  ha_mcp_url:
+    name: ha-mcp URL
+    description: >-
+      URL of the ha-mcp server. If using the ha-mcp add-on with default
+      settings, leave as http://localhost:9583/mcp
+  model:
+    name: Claude Model
+    description: >-
+      Which Claude model to use. Sonnet is recommended for most interactions
+      (best balance of quality and cost). Haiku is faster and cheaper for
+      simple queries. Opus is most capable for complex tasks.
+  debug_logging:
+    name: Debug Logging
+    description: >-
+      Enable verbose debug logging in the add-on log. Logs WebSocket messages,
+      agent SDK events, tool calls and results, and startup configuration
+      (with API key masked). Turn off when not troubleshooting.

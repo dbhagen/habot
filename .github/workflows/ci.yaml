@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install server dependencies
+        working-directory: habot/server
+        run: npm ci
+
+      - name: Build server
+        working-directory: habot/server
+        run: npm run build
+
+      - name: Install frontend dependencies
+        working-directory: habot/frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: habot/frontend
+        run: npm run build
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install server dependencies
+        working-directory: habot/server
+        run: npm ci
+
+      - name: TypeScript check (server)
+        working-directory: habot/server
+        run: npx tsc --noEmit
+
+      - name: Install frontend dependencies
+        working-directory: habot/frontend
+        run: npm ci
+
+      - name: TypeScript check (frontend)
+        working-directory: habot/frontend
+        run: npx tsc --noEmit
+
+  validate-addon:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate add-on config
+        run: |
+          python3 -c "
+          import yaml, sys
+          for f in ['repository.yaml', 'habot/config.yaml', 'habot/build.yaml']:
+              try:
+                  yaml.safe_load(open(f))
+                  print(f'OK: {f}')
+              except Exception as e:
+                  print(f'FAIL: {f}: {e}')
+                  sys.exit(1)
+          "
