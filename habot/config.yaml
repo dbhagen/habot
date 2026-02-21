@@ -1,6 +1,6 @@
 name: HABot
 description: Chat with an AI to manage your Home Assistant
-version: "0.1.1"
+version: "0.1.2"
 slug: habot
 url: https://github.com/dbhagen/habot
 arch:
