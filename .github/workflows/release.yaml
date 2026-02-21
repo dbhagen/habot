@@ -16,7 +16,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.RELEASE_TOKEN }}
 
       - uses: actions/setup-node@v4
         with:
@@ -155,8 +155,9 @@ jobs:
           NEW="${{ steps.version.outputs.new }}"
           git add -A
           git commit -m "chore(release): v${NEW}"
+          git push origin main
           git tag -a "v${NEW}" -m "v${NEW}"
-          git push origin main --follow-tags
+          git push origin "v${NEW}"
 
       - name: Create GitHub Release
         if: steps.bump.outputs.skip == 'false'
