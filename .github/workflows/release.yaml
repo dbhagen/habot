@@ -1,22 +1,16 @@
 name: Release
 
 on:
-  workflow_dispatch:
-    inputs:
-      bump:
-        description: 'Version bump type'
-        required: true
-        type: choice
-        options:
-          - patch
-          - minor
-          - major
+  push:
+    branches: [main]
 
 permissions:
   contents: write
 
 jobs:
   release:
+    # Skip release commits to avoid infinite loop
+    if: "!startsWith(github.event.head_commit.message, 'chore(release):')"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -33,91 +27,143 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+      - name: Determine version bump from conventional commits
+        id: bump
+        run: |
+          # Find last release tag
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+
+          if [ -z "$LAST_TAG" ]; then
+            RANGE="HEAD"
+          else
+            RANGE="${LAST_TAG}..HEAD"
+          fi
+
+          # Parse conventional commits to determine bump type
+          COMMITS=$(git log "$RANGE" --pretty=format:"%s" --no-merges)
+
+          BUMP=""
+          while IFS= read -r msg; do
+            [ -z "$msg" ] && continue
+
+            # BREAKING CHANGE in footer or ! after type → major
+            if echo "$msg" | grep -qE '^[a-z]+(\(.+\))?!:' || echo "$msg" | grep -q 'BREAKING CHANGE'; then
+              BUMP="major"
+              break
+            fi
+
+            # feat → minor (but keep checking for major)
+            if echo "$msg" | grep -qE '^feat(\(.+\))?:'; then
+              [ "$BUMP" != "major" ] && BUMP="minor"
+            fi
+
+            # fix, perf → patch (only if nothing bigger found)
+            if echo "$msg" | grep -qE '^(fix|perf)(\(.+\))?:'; then
+              [ -z "$BUMP" ] && BUMP="patch"
+            fi
+          done <<< "$COMMITS"
+
+          if [ -z "$BUMP" ]; then
+            echo "No releasable conventional commits found. Skipping release."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "type=$BUMP" >> "$GITHUB_OUTPUT"
+            echo "Detected bump: $BUMP"
+          fi
+
       - name: Calculate new version
+        if: steps.bump.outputs.skip == 'false'
         id: version
         run: |
-          CURRENT=$(grep '^version:' habot/config.yaml | sed 's/version: *"\(.*\)"/\1/')
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+
+          if [ -z "$LAST_TAG" ]; then
+            CURRENT=$(grep '^version:' habot/config.yaml | sed 's/version: *"\(.*\)"/\1/')
+          else
+            CURRENT="${LAST_TAG#v}"
+          fi
+
           IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
 
-          case "${{ inputs.bump }}" in
+          case "${{ steps.bump.outputs.type }}" in
             major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
             minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
             patch) PATCH=$((PATCH + 1)) ;;
           esac
 
           NEW="${MAJOR}.${MINOR}.${PATCH}"
-          echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
           echo "new=$NEW" >> "$GITHUB_OUTPUT"
-          echo "Bumping $CURRENT → $NEW"
+          echo "Releasing $CURRENT → $NEW"
 
       - name: Update version in all files
+        if: steps.bump.outputs.skip == 'false'
         run: |
           NEW="${{ steps.version.outputs.new }}"
 
-          # habot/config.yaml
           sed -i "s/^version: .*/version: \"${NEW}\"/" habot/config.yaml
-
-          # habot/server/package.json
           cd habot/server && npm version "$NEW" --no-git-tag-version && cd ../..
-
-          # habot/frontend/package.json
           cd habot/frontend && npm version "$NEW" --no-git-tag-version && cd ../..
 
-      - name: Update CHANGELOG.md
+      - name: Generate changelog entry
+        if: steps.bump.outputs.skip == 'false'
         run: |
           NEW="${{ steps.version.outputs.new }}"
           DATE=$(date +%Y-%m-%d)
-
-          # Generate changelog from commits since last tag
           LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-          if [ -n "$LAST_TAG" ]; then
-            COMMITS=$(git log "${LAST_TAG}..HEAD" --pretty=format:"- %s" --no-merges)
+
+          if [ -z "$LAST_TAG" ]; then
+            RANGE="HEAD"
           else
-            COMMITS=$(git log --pretty=format:"- %s" --no-merges)
+            RANGE="${LAST_TAG}..HEAD"
           fi
 
-          # Prepend new version to CHANGELOG
-          ENTRY="## ${NEW} (${DATE})\n\n${COMMITS}\n"
+          # Group commits by type
+          FEATURES=$(git log "$RANGE" --pretty=format:"%s" --no-merges | grep -E '^feat(\(.+\))?: ' | sed 's/^feat\(([^)]*)\): /- **\1:** /' | sed 's/^feat: /- /' || true)
+          FIXES=$(git log "$RANGE" --pretty=format:"%s" --no-merges | grep -E '^fix(\(.+\))?: ' | sed 's/^fix\(([^)]*)\): /- **\1:** /' | sed 's/^fix: /- /' || true)
+          PERF=$(git log "$RANGE" --pretty=format:"%s" --no-merges | grep -E '^perf(\(.+\))?: ' | sed 's/^perf\(([^)]*)\): /- **\1:** /' | sed 's/^perf: /- /' || true)
+          OTHERS=$(git log "$RANGE" --pretty=format:"%s" --no-merges | grep -vE '^(feat|fix|perf|chore\(release\))(\(.+\))?: ' | sed 's/^/- /' || true)
 
+          {
+            echo "## ${NEW} (${DATE})"
+            echo ""
+            [ -n "$FEATURES" ] && echo "### Features" && echo "" && echo "$FEATURES" && echo ""
+            [ -n "$FIXES" ] && echo "### Bug Fixes" && echo "" && echo "$FIXES" && echo ""
+            [ -n "$PERF" ] && echo "### Performance" && echo "" && echo "$PERF" && echo ""
+            [ -n "$OTHERS" ] && echo "### Other Changes" && echo "" && echo "$OTHERS" && echo ""
+          } > /tmp/changelog-entry.md
+
+          # Prepend to CHANGELOG.md
           if [ -f habot/CHANGELOG.md ]; then
-            sed -i "s/^# Changelog$/# Changelog\n\n${ENTRY}/" habot/CHANGELOG.md
+            tail -n +2 habot/CHANGELOG.md > /tmp/changelog-rest.md
+            echo "# Changelog" > habot/CHANGELOG.md
+            echo "" >> habot/CHANGELOG.md
+            cat /tmp/changelog-entry.md >> habot/CHANGELOG.md
+            cat /tmp/changelog-rest.md >> habot/CHANGELOG.md
           else
-            printf "# Changelog\n\n${ENTRY}\n" > habot/CHANGELOG.md
+            echo "# Changelog" > habot/CHANGELOG.md
+            echo "" >> habot/CHANGELOG.md
+            cat /tmp/changelog-entry.md >> habot/CHANGELOG.md
           fi
 
-      - name: Install and build
-        run: |
-          cd habot/server && npm ci && npm run build && cd ../..
-          cd habot/frontend && npm ci && npm run build && cd ../..
+          # Also save for GitHub release notes
+          cp /tmp/changelog-entry.md /tmp/release-notes.md
 
-      - name: Commit and tag
+      - name: Commit, tag, and push
+        if: steps.bump.outputs.skip == 'false'
         run: |
           NEW="${{ steps.version.outputs.new }}"
           git add -A
-          git commit -m "release: v${NEW}"
-          git tag -a "v${NEW}" -m "Release v${NEW}"
+          git commit -m "chore(release): v${NEW}"
+          git tag -a "v${NEW}" -m "v${NEW}"
           git push origin main --follow-tags
 
-      - name: Generate release notes
-        id: notes
-        run: |
-          NEW="${{ steps.version.outputs.new }}"
-          LAST_TAG=$(git describe --tags --abbrev=0 "v${NEW}^" 2>/dev/null || echo "")
-
-          if [ -n "$LAST_TAG" ]; then
-            NOTES=$(git log "${LAST_TAG}..v${NEW}" --pretty=format:"- %s" --no-merges | grep -v "^- release:")
-          else
-            NOTES=$(git log "v${NEW}" --pretty=format:"- %s" --no-merges | grep -v "^- release:")
-          fi
-
-          # Write to file to preserve newlines
-          echo "$NOTES" > /tmp/release-notes.txt
-
       - name: Create GitHub Release
+        if: steps.bump.outputs.skip == 'false'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           NEW="${{ steps.version.outputs.new }}"
           gh release create "v${NEW}" \
             --title "v${NEW}" \
-            --notes-file /tmp/release-notes.txt
+            --notes-file /tmp/release-notes.md

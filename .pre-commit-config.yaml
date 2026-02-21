@@ -17,3 +17,10 @@ repos:
       - id: prettier
         types_or: [javascript, jsx, ts, tsx, json, yaml, markdown, css]
         exclude: 'node_modules|dist|package-lock\.json'
+
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v4.0.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]
+        args: [feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert]

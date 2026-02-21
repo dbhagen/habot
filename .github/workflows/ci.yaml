@@ -7,6 +7,19 @@ on:
     branches: [main]
 
 jobs:
+  commitlint:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: wagoid/commitlint-github-action@v6
+        with:
+          configFile: ''
+          failOnWarnings: true
+
   build:
     runs-on: ubuntu-latest
     steps:
