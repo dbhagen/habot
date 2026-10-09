@@ -299,6 +299,34 @@ export function useWebSocket(activeSessionId: string | null): UseWebSocketReturn
         break;
       }
 
+      case "approval_denied": {
+        // Server-side denial of a pending approval (timeout auto-deny).
+        // Clear the prompt so it never outlives the decision, and surface
+        // visible feedback — the denial is otherwise silent to the user.
+        debug("tools", `approval denied (reason=${msg.reason}) session=${msg.sessionId} toolUseId=${msg.toolUseId}`);
+        const entry = streamingBySession.current.get(msg.sessionId);
+        if (entry) {
+          entry.approvalRequest = null;
+          syncIfActive(msg.sessionId, entry);
+        }
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: generateId(),
+            sessionId: msg.sessionId,
+            role: "system",
+            content: `Approval request denied (${msg.reason}) — the action was not performed.`,
+            images: null,
+            toolCalls: null,
+            segments: null,
+            tokenUsage: null,
+            costUsd: null,
+            timestamp: new Date().toISOString(),
+          },
+        ]);
+        break;
+      }
+
       case "error": {
         debug("ws", `server error: ${msg.message}`, { sessionId: msg.sessionId });
         if (msg.sessionId) {

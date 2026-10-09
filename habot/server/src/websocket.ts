@@ -502,11 +502,14 @@ function startAgentTurn(
           input: maskSecretsInObject(input),
         });
 
-        // 5-minute timeout → auto-deny
+        // 5-minute timeout → auto-deny and notify the client so the prompt
+        // does not outlive the decision (reason distinguishes a server-side
+        // timeout from a user-initiated denial).
         setTimeout(() => {
           if (pendingApprovals.has(toolUseId)) {
             debug("ws", `approval timeout (5min) auto-denying tool=${toolName} toolUseId=${toolUseId}`);
             pendingApprovals.delete(toolUseId);
+            send(ws, { type: "approval_denied", sessionId, toolUseId, reason: "timeout" });
             resolve({ approved: false });
           }
         }, 5 * 60 * 1000);

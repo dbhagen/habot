@@ -116,4 +116,35 @@ describe("useWebSocket reconnect semantics", () => {
     await sleep(2600);
     expect(server.connectionCount).toBeLessThanOrEqual(1);
   });
+
+  it("clears the approval prompt and surfaces visible feedback on a server timeout denial", async () => {
+    // Render with the session active — the App always views a session when an
+    // approval prompt can appear, and hook state syncs only for that session.
+    const { result } = renderHook(() => useWebSocket(syntheticSession.id));
+    await waitFor(() => expect(result.current.connected).toBe(true));
+
+    server.sendTo(0, {
+      type: "approval_request",
+      sessionId: syntheticSession.id,
+      toolUseId: "tu-1",
+      toolName: "mcp__ha-mcp__ha_call_service",
+      input: { entity_id: "light.kitchen" },
+    });
+    await waitFor(() => expect(result.current.approvalRequest).not.toBeNull());
+
+    server.sendTo(0, {
+      type: "approval_denied",
+      sessionId: syntheticSession.id,
+      toolUseId: "tu-1",
+      reason: "timeout",
+    });
+    await waitFor(() => expect(result.current.approvalRequest).toBeNull());
+    // The prompt never outlives the server's decision: user-visible feedback
+    // replaces it as a system message.
+    expect(
+      result.current.messages.some(
+        (m) => m.role === "system" && m.content.includes("Approval request denied"),
+      ),
+    ).toBe(true);
+  });
 });

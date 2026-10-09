@@ -180,7 +180,7 @@ describe("approval flow", () => {
     await client.close();
   });
 
-  it("auto-denies a pending approval after the 5-minute timeout (pinned: client is not notified)", async () => {
+  it("notifies the client with reason=timeout when an approval request times out and auto-denies", async () => {
     const client = await connectClient(server.port);
     await client.waitForType("server_hello");
     const sessionId = await createSession(client);
@@ -199,14 +199,17 @@ describe("approval flow", () => {
       const advance = vi.advanceTimersByTimeAsync(5 * 60 * 1000);
       await expect(approval).resolves.toEqual({ approved: false });
       await advance;
+
+      // The server tells the client the approval was auto-denied, with a
+      // reason distinguishing the timeout from a user-initiated denial.
+      const denied = await client.waitForType("approval_denied");
+      expect(denied).toMatchObject({ sessionId, toolUseId: TOOL_USE_ID, reason: "timeout" });
     } finally {
       vi.useRealTimers();
     }
 
     // The expired toolUseId is forgotten: a late approval is a harmless no-op
-    // (no resolver, no turn) and the connection keeps working. Pinned current
-    // behavior: the server sends no message when the timeout fires, so the UI
-    // is not told the request was auto-denied.
+    // (no resolver, no turn) and the connection keeps working.
     client.send({ type: "approve_tool", sessionId, toolUseId: TOOL_USE_ID, approved: true });
     await TestClient.expectSilence(200);
     expect(client.count("turn_complete")).toBe(0);
