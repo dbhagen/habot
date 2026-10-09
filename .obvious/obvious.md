@@ -1,0 +1,5 @@
+# Autobuild Orientation
+
+HABot is a Home Assistant Supervisor add-on: a Node 22 server (Express 5 + ws + better-sqlite3 + Claude Agent SDK in `habot/server`) with a React 19/Vite 6 frontend (`habot/frontend`), packaged via `habot/config.yaml` + `build.yaml` + `Dockerfile` + `run.sh` and served to Home Assistant users over Ingress. Users chat with Claude to operate their home through the external ha-mcp MCP server. Start at `AGENTS.md` for the repo map and proven commands; deeper context in `.obvious/orientation/codebase-map.md`, gate/limitation inventory in `.obvious/qa.md`.
+
+Highest-priority constraints for automated work: never commit real API keys or add-on option values — runtime secrets live only in the add-on's own storage (`/data/options.json` inside the HA instance); PRs target `main` with Conventional Commits (commitlint enforces on PRs) and squash-merge; preserve the documented approval-machinery boundaries (`agent.ts` allowlists, `resume.ts` auto-approval, `mask-secrets.ts` egress coverage — see `.obvious/review/overlay.md`), and note the repo has no test suite, so behavioral claims must be argued from code, not from "tests pass".
