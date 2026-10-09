@@ -180,6 +180,41 @@ describe("approval flow", () => {
     await client.close();
   });
 
+  it("auto-denies a pending approval after the 5-minute timeout (pinned: client is not notified)", async () => {
+    const client = await connectClient(server.port);
+    await client.waitForType("server_hello");
+    const sessionId = await createSession(client);
+
+    client.send({ type: "send_message", sessionId, content: "toggle the kitchen light" });
+    await waitForQueryCount(1);
+    const query = latestQuery();
+    query.callbacks.onToolUse(syntheticToolCall(TOOL_USE_ID, "running"));
+
+    // Register the approval (and its 5-minute server timer) under fake timers.
+    vi.useFakeTimers();
+    try {
+      const approval = query.callbacks.onApprovalNeeded(TOOL_USE_ID, TOOL, { entity_id: "light.kitchen" });
+      await client.waitForType("approval_request");
+
+      const advance = vi.advanceTimersByTimeAsync(5 * 60 * 1000);
+      await expect(approval).resolves.toEqual({ approved: false });
+      await advance;
+    } finally {
+      vi.useRealTimers();
+    }
+
+    // The expired toolUseId is forgotten: a late approval is a harmless no-op
+    // (no resolver, no turn) and the connection keeps working. Pinned current
+    // behavior: the server sends no message when the timeout fires, so the UI
+    // is not told the request was auto-denied.
+    client.send({ type: "approve_tool", sessionId, toolUseId: TOOL_USE_ID, approved: true });
+    await TestClient.expectSilence(200);
+    expect(client.count("turn_complete")).toBe(0);
+    client.send({ type: "create_session" });
+    await client.waitForType("session_created");
+    await client.close();
+  });
+
   it("auto-approves later calls of the same tool after 'allow and always' approval", async () => {
     const client = await connectClient(server.port);
     await client.waitForType("server_hello");
