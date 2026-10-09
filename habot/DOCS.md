@@ -11,9 +11,10 @@ Chat with HABot to inspect, troubleshoot, and reconfigure your Home Assistant se
 
 | Option | Description |
 |--------|-------------|
-| `anthropic_api_key` | Your API key or subscription token (see above) |
+| `anthropic_api_key` | Your Anthropic API key, or a Claude subscription token (`sk-ant-oat01-…`). The add-on detects the type from the token prefix and passes it to Claude with the correct credential field. |
 | `ha_mcp_url` | URL of the ha-mcp server (default: `http://localhost:9583/mcp`) |
 | `model` | Claude model to use: `claude-sonnet-4-6` (recommended), `claude-haiku-4-5`, or `claude-opus-4-6` |
+| `debug_logging` | Enable verbose debug logging (default: `false`) |
 
 ## Usage
 
@@ -32,4 +33,4 @@ Chat with HABot to inspect, troubleshoot, and reconfigure your Home Assistant se
 
 ## Safety
 
-Claude will ask for your approval before making destructive changes (editing automations, restarting HA, etc.) and automatically creates backups before significant modifications.
+Claude asks for your approval before destructive operations (restarting or reloading Home Assistant, editing or deleting automations and dashboards, service calls, file writes) — pending approvals are denied if unanswered for five minutes. Before destructive changes, Claude is instructed to create a Home Assistant backup first (via ha-mcp's backup tool).
