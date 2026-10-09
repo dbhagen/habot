@@ -1,0 +1,48 @@
+# Obvious repo configuration — schema per https://help.obvious.ai/autobuild/config-yml-reference
+# (published 2026-05-22, updated 2026-09-24; re-verified against the live page 2026-10-09).
+#
+# Default base branch: main (branches.defaultBase below). The release base is always the repo's
+# live default branch, not a config key. Reserved sections (notifications, release, owners,
+# runbooks) and reviews.humanReview.requestPolicy are intentionally not written.
+# branches.draftEarly is a platform invariant (always true) and cannot be set.
+
+branches:
+  defaultBase: main
+
+pr:
+  merge:
+    method: squash
+
+reviews:
+  automated:
+    enabled: true
+  routing:
+    rules:
+      # First match wins. Built-in reviewer types per the official annotated example:
+      # general | security | performance.
+      - name: Security & behavior-critical surfaces
+        match:
+          - habot/server/src/agent.ts         # canUseTool: DESTRUCTIVE_TOOLS enforcement + default-allow branch
+          - habot/server/src/resume.ts        # post-restart auto-resume, auto-approval boundary
+          - habot/server/src/websocket.ts     # WS protocol, approval handling, always-allow set
+          - habot/server/src/mask-secrets.ts  # secret masking of DB/WS egress
+          - habot/run.sh                      # /data/options.json parsing, API-key vs OAuth-token routing
+          - habot/config.yaml                 # add-on options schema users configure
+          - habot/frontend/src/hooks/useWebSocket.ts
+          - habot/frontend/src/components/ApprovalPrompt.tsx
+        mode: specialized
+        reviewers:
+          - type: security
+      - name: Catch-all
+        match:
+          - '**'
+        mode: single
+
+triageProjects:
+  reviewProjectId: prj_DtXYya6o
+
+qa:
+  guidePaths:
+    - .obvious/qa.md
+  automationPaths:
+    - .github/workflows/ci.yaml
