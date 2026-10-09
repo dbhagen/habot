@@ -100,3 +100,28 @@ jobs:
                   print(f'FAIL: {f}: {e}')
                   sys.exit(1)
           "
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install server dependencies
+        working-directory: habot/server
+        run: npm ci
+
+      - name: Run server tests
+        working-directory: habot/server
+        run: npm test
+
+      - name: Install frontend dependencies
+        working-directory: habot/frontend
+        run: npm ci
+
+      - name: Run frontend tests
+        working-directory: habot/frontend
+        run: npm test

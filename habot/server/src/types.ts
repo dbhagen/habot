@@ -66,6 +66,7 @@ export type ServerMessage =
   | { type: "stream_tool_use"; sessionId: string; toolCall: ToolCallInfo }
   | { type: "turn_complete"; sessionId: string; message: ChatMessage }
   | { type: "approval_request"; sessionId: string; toolUseId: string; toolName: string; input: unknown }
+  | { type: "approval_denied"; sessionId: string; toolUseId: string; reason: "timeout" | "user" }
   | { type: "error"; sessionId: string | null; message: string }
   | { type: "sessions_list"; sessions: ChatSession[] }
   | { type: "messages_list"; sessionId: string; messages: ChatMessage[] }
