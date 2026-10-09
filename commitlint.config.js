@@ -9,4 +9,14 @@ const isDependabotBump = (commit) =>
 export default {
   extends: ["@commitlint/config-conventional"],
   ignores: [isDependabotBump],
+  // failOnWarnings preservation: CI previously ran wagoid/commitlint-github-action
+  // with failOnWarnings: true, so warning-severity findings failed the gate. The
+  // direct CLI has no failOnWarnings flag; body-leading-blank and
+  // footer-leading-blank are the only warning-severity rules in
+  // @commitlint/config-conventional, so promote them to errors to keep the gate
+  // equally strict.
+  rules: {
+    "body-leading-blank": [2, "always"],
+    "footer-leading-blank": [2, "always"],
+  },
 };

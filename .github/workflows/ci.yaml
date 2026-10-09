@@ -15,9 +15,23 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: wagoid/commitlint-github-action@v6
+      - uses: actions/setup-node@v4
         with:
-          failOnWarnings: true
+          node-version: 22
+
+      # Direct pinned CLI invocation (npm registry) replaces the
+      # wagoid/commitlint-github-action Docker Hub image, which failed on
+      # anonymous pull rate limits. failOnWarnings: true is preserved by
+      # promoting the config's warning rules to errors (see commitlint.config.js).
+      - name: Install pinned commitlint toolchain
+        run: npm ci --ignore-scripts
+
+      - name: Lint commits in this pull request
+        run: >
+          npx --no-install commitlint
+          --from "origin/${{ github.event.pull_request.base.ref }}"
+          --to "${{ github.event.pull_request.head.sha }}"
+          --verbose
 
   build:
     runs-on: ubuntu-latest
