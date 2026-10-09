@@ -78,6 +78,10 @@ export interface UseWebSocketReturn {
 
 export function useWebSocket(activeSessionId: string | null): UseWebSocketReturn {
   const wsRef = useRef<WebSocket | null>(null);
+  // Tracks the component's mounted state so pending reconnects can be
+  // cancelled on unmount instead of leaving a zombie reconnect loop.
+  const disposedRef = useRef(false);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [connected, setConnected] = useState(false);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -361,6 +365,7 @@ export function useWebSocket(activeSessionId: string | null): UseWebSocketReturn
   }, []);
 
   const connect = useCallback(() => {
+    if (disposedRef.current) return;
     const url = getWebSocketUrl();
     debug("ws", `connecting to ${url}`);
     const ws = new WebSocket(url);
@@ -375,7 +380,8 @@ export function useWebSocket(activeSessionId: string | null): UseWebSocketReturn
       debug("ws", "connection closed, reconnecting in 2s");
       setConnected(false);
       // Reconnect after 2 seconds
-      setTimeout(connect, 2000);
+      if (disposedRef.current) return;
+      reconnectTimerRef.current = setTimeout(connect, 2000);
     };
 
     ws.onerror = (e) => {
@@ -390,10 +396,27 @@ export function useWebSocket(activeSessionId: string | null): UseWebSocketReturn
   }, [handleServerMessage]);
 
   useEffect(() => {
+    disposedRef.current = false;
     connect();
     return () => {
-      debug("ws", "component unmounting, closing WebSocket");
-      wsRef.current?.close();
+      disposedRef.current = true;
+      // Cancel any pending reconnect and detach handlers so closing the
+      // socket cannot schedule a zombie reconnect after unmount.
+      if (reconnectTimerRef.current !== null) {
+        clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
+      const ws = wsRef.current;
+      if (ws) {
+        ws.onopen = null;
+        ws.onclose = null;
+        ws.onmessage = null;
+        // The `ws` test shim emits an 'error' event when close() aborts a
+        // CONNECTING handshake (browsers close silently); keep a no-op
+        // listener so the event cannot surface as an uncaught error.
+        ws.onerror = () => {};
+        ws.close();
+      }
     };
   }, [connect]);
 
