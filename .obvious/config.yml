@@ -1,0 +1,16 @@
+# Obvious repo configuration — officially supported fields only (config reference checked 2026-10-09).
+# Unknown fields are ignored with a diagnostic and some accepted fields are reserved,
+# so nothing outside the reviews/triageProjects/qa sections below is written here.
+#
+# Repository default branch: main. The supported config schema has no key for it,
+# so it is documented instead in .obvious/orientation/codebase-map.md and .obvious/local-dev.md.
+
+reviews:
+  automated:
+    enabled: true
+
+qa:
+  guidePaths:
+    - .obvious/qa.md
+  automationPaths:
+    - .github/workflows/ci.yaml
