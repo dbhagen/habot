@@ -1,0 +1,10 @@
+{
+  "name": "habot",
+  "private": true,
+  "description": "Toolchain manifest for repo-wide CI tooling (commitlint gate). Application packages live in habot/server and habot/frontend.",
+  "devDependencies": {
+    "@commitlint/cli": "21.2.3",
+    "@commitlint/config-conventional": "21.2.3"
+  },
+  "type": "module"
+}
