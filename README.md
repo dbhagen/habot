@@ -8,7 +8,7 @@ A Home Assistant Supervisor add-on that brings Claude-powered AI interaction dir
 
 ## What It Does
 
-Claude has broad read/write access to Home Assistant through [ha-mcp](https://github.com/homeassistant-ai/ha-mcp), which exposes 97 tools covering entity control, automation CRUD, dashboard management, system administration, and more. You describe what you want in natural language, and Claude makes it happen.
+Claude has broad read/write access to Home Assistant through [ha-mcp](https://github.com/homeassistant-ai/ha-mcp), which exposes tools covering entity control, automation CRUD, dashboard management, system administration, and more. You describe what you want in natural language, and Claude makes it happen.
 
 **Key capabilities:**
 - Create and edit automations, scripts, and scenes
@@ -23,12 +23,12 @@ Claude has broad read/write access to Home Assistant through [ha-mcp](https://gi
 | Requirement | Details |
 |---|---|
 | **Home Assistant OS or Supervised** | 2024.1+ required for Supervisor add-on support |
-| **[ha-mcp](https://github.com/homeassistant-ai/ha-mcp)** add-on | Provides the 97 MCP tools Claude uses to interact with HA |
+| **[ha-mcp](https://github.com/homeassistant-ai/ha-mcp)** add-on | Provides the MCP tools Claude uses to interact with HA |
 | **Anthropic API key** | Get one at [console.anthropic.com](https://console.anthropic.com/settings/keys) |
 
 ## Installation
 
-1. In Home Assistant, go to **Settings > Add-ons > Add-on Store**
+1. In Home Assistant, go to **Settings > Add-ons > Add-on Store** (renamed **Apps** in Home Assistant 2026.2+)
 2. Click the **three dots** menu (top right) > **Repositories**
 3. Add this repository URL:
    ```
@@ -42,7 +42,7 @@ Claude has broad read/write access to Home Assistant through [ha-mcp](https://gi
 
 | Option | Default | Description |
 |---|---|---|
-| `anthropic_api_key` | — | Your Anthropic API key ([get one here](https://console.anthropic.com/settings/keys)) |
+| `anthropic_api_key` | — | Your Anthropic API key ([get one here](https://console.anthropic.com/settings/keys)) or a Claude subscription token (`sk-ant-oat01-…`). The add-on detects the type from the token prefix and passes it to Claude with the correct credential field. |
 | `ha_mcp_url` | `http://localhost:9583/mcp` | URL of the ha-mcp server |
 | `model` | `claude-sonnet-4-6` | Model to use: `claude-sonnet-4-6`, `claude-haiku-4-5`, or `claude-opus-4-6` |
 | `debug_logging` | `false` | Enable verbose debug logging |
@@ -67,10 +67,10 @@ Claude has broad read/write access to Home Assistant through [ha-mcp](https://gi
 
 ## Safety
 
-- Claude asks for **approval before destructive changes** (editing automations, restarting HA, etc.)
-- **Automatic backups** are created before significant configuration modifications
-- **Restart resilience** — if Claude triggers an HA restart, the conversation auto-resumes when HA comes back up
-- All data stays local to your HA instance; nothing leaves your network except API calls to Anthropic
+- **Approval before destructive operations** — the server holds a defined list of destructive operations (restarting or reloading Home Assistant, creating/deleting automations or dashboards, service calls, backup restores, file writes and shell commands) and pauses for an in-chat approval before running them: Approve, Deny (with optional instructions), or Allow-and-always-allow for the rest of that chat. Pending requests are denied if unanswered for five minutes. Operations outside that list — and all read-only tools — run without a prompt.
+- **Backups before destructive changes** — HABot does not implement backups itself; Claude is instructed to create a Home Assistant backup via ha-mcp's backup tool before any destructive change. This guidance comes from the agent's system prompt, not an enforced add-on mechanism.
+- **Restart resilience** — if Claude triggers an HA restart, the conversation auto-resumes when HA comes back up, with a follow-up turn verifying the changes took effect. Because no one is present during that automatic resume turn, tool calls in it run without approval prompts.
+- **Local data** — conversations are stored in a SQLite database in the add-on's data directory. Besides the Anthropic API, Claude can fetch public web content via built-in WebFetch/WebSearch tools, and home data flows between HABot and the ha-mcp URL you configure.
 
 ## Architecture
 
@@ -79,7 +79,7 @@ Browser (HA Ingress)
     ↕ WebSocket
 HABot Server (Express + ws, port 8099)
     ↕ Claude Agent SDK
-    ↕ Anthropic API        ↕ ha-mcp (97 tools)
+    ↕ Anthropic API        ↕ ha-mcp
                                 ↕ Home Assistant API
 ```
 
@@ -99,7 +99,7 @@ cd habot/server && npm run build
 cd habot/frontend && npm run build
 ```
 
-See [CLAUDE.md](CLAUDE.md) for detailed development documentation.
+See [AGENTS.md](AGENTS.md) for detailed development documentation.
 
 ## Contributing
 
